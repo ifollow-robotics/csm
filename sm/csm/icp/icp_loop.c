@@ -58,7 +58,7 @@ int icp_loop(struct sm_params*params, const double*q0, double*x_new,
 		/* If not many correspondences, bail out */
 		int num_corr = ld_num_valid_correspondences(laser_sens);
 		if(num_corr < min_corresp_bef) { /* TODO: arbitrary */
-			sm_error("  icp_loop: failed: before trimming, only %d correspondences (min is %d).\n", num_corr, min_corresp_bef);
+			sm_error("  icp_loop: failed at iteration %d: before trimming, only %d correspondences (min is %d).\n", iteration, num_corr, min_corresp_bef);
 			all_is_okay = 0;
 			egsl_pop_named("icp_loop iteration"); /* loop context */
 			break;
@@ -93,7 +93,7 @@ int icp_loop(struct sm_params*params, const double*q0, double*x_new,
 
 		/* If not many correspondences, bail out */
 		if(num_corr_after < min_corresp_aft){
-			sm_error("  icp_loop: failed: after trimming, only %d correspondences (min is %d).\n", num_corr_after, min_corresp_aft);
+			sm_error("  icp_loop: failed at iteration %d: after trimming, only %d correspondences (min is %d).\n", iteration, num_corr_after, min_corresp_aft);
 			all_is_okay = 0;
 			egsl_pop_named("icp_loop iteration"); /* loop context */
 			break;
