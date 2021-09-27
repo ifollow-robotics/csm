@@ -10,26 +10,29 @@
 
 #include "icp.h"
 
-int icp_loop(struct sm_params*params, const double*q0, double*x_new, 
+int icp_loop(struct sm_params*params, const double*q0, double*x_new,
 	double*total_error, int*valid, int*iterations) {
 	if(any_nan(q0,3)) {
 		sm_error("icp_loop: Initial pose contains nan: %s\n", friendly_pose(q0));
 		return 0;
 	}
-		
-		
+
+
 	LDP laser_sens = params->laser_sens;
 	double x_old[3], delta[3], delta_old[3] = {0,0,0};
 	copy_d(q0, 3, x_old);
 	unsigned int hashes[params->max_iterations];
 	int iteration;
-	
+
+	int min_corresp_bef = min(floor(0.05 * laser_sens->nrays), 30); /* TODO: arbitrary */
+	int min_corresp_aft = min(floor(0.05 * laser_sens->nrays), 20); /* TODO: arbitrary */
+
 	sm_debug("icp: starting at  q0 =  %s  \n", friendly_pose(x_old));
-	
+
 	if(JJ) jj_loop_enter("iterations");
-	
+
 	int all_is_okay = 1;
-	
+
 	for(iteration=0; iteration<params->max_iterations;iteration++) {
 		if(JJ) jj_loop_iteration();
 		if(JJ) jj_add_double_array("x_old", x_old, 3);
@@ -54,9 +57,8 @@ int icp_loop(struct sm_params*params, const double*q0, double*x_new,
 
 		/* If not many correspondences, bail out */
 		int num_corr = ld_num_valid_correspondences(laser_sens);
-		double fail_perc = 0.05;
-		if(num_corr < fail_perc * laser_sens->nrays) { /* TODO: arbitrary */
-			sm_error("	: before trimming, only %d correspondences.\n",num_corr);
+		if(num_corr < min_corresp_bef) { /* TODO: arbitrary */
+			sm_error("  icp_loop: failed: before trimming, only %d correspondences (min is %d).\n", num_corr, min_corresp_bef);
 			all_is_okay = 0;
 			egsl_pop_named("icp_loop iteration"); /* loop context */
 			break;
@@ -67,16 +69,16 @@ int icp_loop(struct sm_params*params, const double*q0, double*x_new,
 		/* Kill some correspondences (using dubious algorithm) */
 		if(params->outliers_remove_doubles)
 			kill_outliers_double(params);
-		
+
 		int num_corr2 = ld_num_valid_correspondences(laser_sens);
 
 		if(JJ) jj_add("corr1", corr_to_json(laser_sens->corr, laser_sens->nrays));
-		
+
 		double error=0;
 		/* Trim correspondences */
 		kill_outliers_trim(params, &error);
 		int num_corr_after = ld_num_valid_correspondences(laser_sens);
-		
+
 		if(JJ) {
 			jj_add("corr2", corr_to_json(laser_sens->corr, laser_sens->nrays));
 			jj_add_int("num_corr0", num_corr);
@@ -84,14 +86,14 @@ int icp_loop(struct sm_params*params, const double*q0, double*x_new,
 			jj_add_int("num_corr2", num_corr_after);
 		}
 
-		*total_error = error; 
+		*total_error = error;
 		*valid = num_corr_after;
 
 		sm_debug("  icp_loop: total error: %f  valid %d   mean = %f\n", *total_error, *valid, *total_error/ *valid);
-		
+
 		/* If not many correspondences, bail out */
-		if(num_corr_after < fail_perc * laser_sens->nrays){
-			sm_error("  icp_loop: failed: after trimming, only %d correspondences.\n",num_corr_after);
+		if(num_corr_after < min_corresp_aft){
+			sm_error("  icp_loop: failed: after trimming, only %d correspondences (min is %d).\n", num_corr_after, min_corresp_aft);
 			all_is_okay = 0;
 			egsl_pop_named("icp_loop iteration"); /* loop context */
 			break;
@@ -102,11 +104,11 @@ int icp_loop(struct sm_params*params, const double*q0, double*x_new,
 			sm_error("  icp_loop: Cannot compute next estimate.\n");
 			all_is_okay = 0;
 			egsl_pop_named("icp_loop iteration");
-			break;			
+			break;
 		}
 
 		pose_diff_d(x_new, x_old, delta);
-		
+
 		{
 			sm_debug("  icp_loop: killing. laser_sens has %d/%d rays valid,  %d corr found -> %d after double cut -> %d after adaptive cut \n", count_equal(laser_sens->valid, laser_sens->nrays, 1), laser_sens->nrays, num_corr, num_corr2, num_corr_after);
 			if(JJ) {
@@ -116,14 +118,14 @@ int icp_loop(struct sm_params*params, const double*q0, double*x_new,
 		}
 		/** Checks for oscillations */
 		hashes[iteration] = ld_corr_hash(laser_sens);
-		
+
 		{
-			sm_debug("  icp_loop: it. %d  hash=%d nvalid=%d mean error = %f, x_new= %s\n", 
-				iteration, hashes[iteration], *valid, *total_error/ *valid, 
+			sm_debug("  icp_loop: it. %d  hash=%d nvalid=%d mean error = %f, x_new= %s\n",
+				iteration, hashes[iteration], *valid, *total_error/ *valid,
 				friendly_pose(x_new));
 		}
 
-		
+
 		/** PLICP terminates in a finite number of steps! */
 		if(params->use_point_to_line_distance) {
 			int loop_detected = 0; /* TODO: make function */
@@ -137,9 +139,9 @@ int icp_loop(struct sm_params*params, const double*q0, double*x_new,
 			if(loop_detected) {
 				egsl_pop_named("icp_loop iteration");
 				break;
-			} 
+			}
 		}
-	
+
 		/* This termination criterium is useless when using
 		   the point-to-line-distance; however, we put it here because
 		   one can choose to use the point-to-point distance. */
@@ -147,18 +149,18 @@ int icp_loop(struct sm_params*params, const double*q0, double*x_new,
 			egsl_pop_named("icp_loop iteration");
 			break;
 		}
-		
+
 		copy_d(x_new, 3, x_old);
 		copy_d(delta, 3, delta_old);
-		
-		
+
+
 		egsl_pop_named("icp_loop iteration");
 	}
 
 	if(JJ) jj_loop_exit();
-	
+
 	*iterations = iteration+1;
-	
+
 	return all_is_okay;
 }
 
@@ -168,27 +170,27 @@ int termination_criterion(struct sm_params*params, const double*delta){
 	return (a<params->epsilon_xy) && (b<params->epsilon_theta);
 }
 
-int compute_next_estimate(struct sm_params*params, 
-	const double x_old[3], double x_new[3]) 
+int compute_next_estimate(struct sm_params*params,
+	const double x_old[3], double x_new[3])
 {
 	LDP laser_ref  = params->laser_ref;
 	LDP laser_sens = params->laser_sens;
-	
+
 	struct gpc_corr c[laser_sens->nrays];
 
 	int i; int k=0;
 	for(i=0;i<laser_sens->nrays;i++) {
 		if(!laser_sens->valid[i])
 			continue;
-			
+
 		if(!ld_valid_corr(laser_sens,i))
 			continue;
-		
+
 		int j1 = laser_sens->corr[i].j1;
 		int j2 = laser_sens->corr[i].j2;
 
 		c[k].valid = 1;
-		
+
 		if(laser_sens->corr[i].type == corr_pl) {
 
 			c[k].p[0] = laser_sens->points[i].p[0];
@@ -207,21 +209,21 @@ int compute_next_estimate(struct sm_params*params,
 
 			double cos_alpha = normal[0];
 			double sin_alpha = normal[1];
-						
+
 			c[k].C[0][0] = cos_alpha*cos_alpha;
-			c[k].C[1][0] = 
+			c[k].C[1][0] =
 			c[k].C[0][1] = cos_alpha*sin_alpha;
 			c[k].C[1][1] = sin_alpha*sin_alpha;
-			
+
 /*			sm_debug("k=%d, i=%d sens_phi: %fdeg, j1=%d j2=%d,  alpha_seg=%f, cos=%f sin=%f \n", k,i,
 				rad2deg(laser_sens->theta[i]), j1,j2, atan2(sin_alpha,cos_alpha), cos_alpha,sin_alpha);*/
-			
+
 #if 0
 			/* Note: it seems that because of numerical errors this matrix might be
 			   not semidef positive. */
 			double det = c[k].C[0][0] * c[k].C[1][1] - c[k].C[0][1] * c[k].C[1][0];
 			double trace = c[k].C[0][0] + c[k].C[1][1];
-			
+
 			int semidef = (det >= 0) && (trace>0);
 			if(!semidef) {
 	/*			printf("%d: Adjusting correspondence weights\n",i);*/
@@ -229,11 +231,11 @@ int compute_next_estimate(struct sm_params*params,
 				c[k].C[0][0] += 2*sqrt(eps);
 				c[k].C[1][1] += 2*sqrt(eps);
 			}
-#endif			
+#endif
 		} else {
 			c[k].p[0] = laser_sens->points[i].p[0];
 			c[k].p[1] = laser_sens->points[i].p[1];
-			
+
 			projection_on_segment_d(
 				laser_ref->points[j1].p,
 				laser_ref->points[j2].p,
@@ -246,11 +248,11 @@ int compute_next_estimate(struct sm_params*params,
 			c[k].C[0][1] = 0;
 			c[k].C[1][1] = 1;
 		}
-		
-		
+
+
 		double factor = 1;
-		
-		/* Scale the correspondence weight by a factor concerning the 
+
+		/* Scale the correspondence weight by a factor concerning the
 		   information in this reading. */
 		if(params->use_ml_weights) {
 			int have_alpha = 0;
@@ -262,27 +264,27 @@ int compute_next_estimate(struct sm_params*params,
 				alpha = laser_ref->alpha[j1];;
 				have_alpha = 1;
 			} else have_alpha = 0;
-			
+
 			if(have_alpha) {
 				double pose_theta = x_old[2];
-				/** Incidence of the ray 
+				/** Incidence of the ray
 					Note that alpha is relative to the first scan (not the world)
-					and that pose_theta is the angle of the second scan with 
+					and that pose_theta is the angle of the second scan with
 					respect to the first, hence it's ok. */
 				double beta = alpha - (pose_theta + laser_sens->theta[i]);
 				factor = 1 / square(cos(beta));
 			} else {
 				static int warned_before = 0;
 				if(!warned_before) {
-					sm_error("Param use_ml_weights was active, but not valid alpha[] or true_alpha[]." 
-					          "Perhaps, if this is a single ray not having alpha, you should mark it as inactive.\n");						
-					sm_error("Writing laser_ref: \n");						
+					sm_error("Param use_ml_weights was active, but not valid alpha[] or true_alpha[]."
+					          "Perhaps, if this is a single ray not having alpha, you should mark it as inactive.\n");
+					sm_error("Writing laser_ref: \n");
 					ld_write_as_json(laser_ref, stderr);
 					warned_before = 1;
 				}
 			}
-		} 
-		
+		}
+
 		/* Weight the points by the sigma in laser_sens */
 		if(params->use_sigma_weights) {
 			if(!is_nan(laser_sens->readings_sigma[i])) {
@@ -290,29 +292,29 @@ int compute_next_estimate(struct sm_params*params,
 			} else {
 				static int warned_before = 0;
 				if(!warned_before) {
-					sm_error("Param use_sigma_weights was active, but the field readings_sigma[] was not filled in.\n");						
-					sm_error("Writing laser_sens: \n");						
+					sm_error("Param use_sigma_weights was active, but the field readings_sigma[] was not filled in.\n");
+					sm_error("Writing laser_sens: \n");
 					ld_write_as_json(laser_sens, stderr);
 				}
 			}
 		}
-		
+
 		c[k].C[0][0] *= factor;
 		c[k].C[1][0] *= factor;
 		c[k].C[0][1] *= factor;
 		c[k].C[1][1] *= factor;
-		
+
 		k++;
 	}
-	
+
 	/* TODO: use prior for odometry */
 	double std = 0.11;
-	const double inv_cov_x0[9] = 
+	const double inv_cov_x0[9] =
 		{1/(std*std), 0, 0,
 		 0, 1/(std*std), 0,
 		 0, 0, 0};
-	
-	
+
+
 	int ok = gpc_solve(k, c, 0, inv_cov_x0, x_new);
 	if(!ok) {
 		sm_error("gpc_solve_valid failed\n");
@@ -330,9 +332,6 @@ int compute_next_estimate(struct sm_params*params,
 	if(new_error > old_error + epsilon) {
 		sm_error("\tcompute_next_estimate: something's fishy here! Old error: %lf  new error: %lf  x_old %lf %lf %lf x_new %lf %lf %lf\n",old_error,new_error,x_old[0],x_old[1],x_old[2],x_new[0],x_new[1],x_new[2]);
 	}
-	
+
 	return 1;
 }
-	
-
-
