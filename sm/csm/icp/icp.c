@@ -27,6 +27,7 @@ void ld_invalid_if_outside(LDP ld, double min_reading, double max_reading) {
 }
 
 void sm_icp(struct sm_params*params, struct sm_result*res) {
+	printf("MY SM ICP\n");
 	res->valid = 0;
 
 	LDP laser_ref  = params->laser_ref;

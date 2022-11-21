@@ -251,11 +251,12 @@ int ld_valid_fields(LDP ld)  {
 		}
 		
 	}
-	/* Checks that there is at least 10% valid rays */
+	/* Checks that there is at least 'min_valid_rays_ratio' valid rays */
+	double min_valid_rays_ratio = 0.01;
 	int num_valid   = count_equal(ld->valid, ld->nrays, 1);
 	int num_invalid = count_equal(ld->valid, ld->nrays, 0);
-	if (num_valid < ld->nrays * 0.10) {
-		sm_error("Valid: %d/%d invalid: %d.\n", num_valid, ld->nrays, num_invalid);
+    if (num_valid < ld->nrays * min_valid_rays_ratio) {
+		sm_error("Minimum %d%% of valid rays. Valid: %d/%d invalid: %d.\n", min_valid_rays_ratio * 100 , num_valid, ld->nrays, num_invalid);
 		return 0;
 	}
 
