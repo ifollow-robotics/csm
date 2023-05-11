@@ -24,8 +24,8 @@ int icp_loop(struct sm_params*params, const double*q0, double*x_new,
 	unsigned int hashes[params->max_iterations];
 	int iteration;
 
-	int min_corresp_bef = min(floor(0.05 * laser_sens->nrays), 30); /* TODO: arbitrary */
-	int min_corresp_aft = min(floor(0.05 * laser_sens->nrays), 20); /* TODO: arbitrary */
+	int min_corresp_bef = min(floor(0.001 * laser_sens->nrays), 30); /* TODO: arbitrary */
+	int min_corresp_aft = min(floor(0.001 * laser_sens->nrays), 20); /* TODO: arbitrary */
 
 	sm_debug("icp: starting at  q0 =  %s  \n", friendly_pose(x_old));
 
