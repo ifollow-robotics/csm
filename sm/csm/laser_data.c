@@ -254,7 +254,7 @@ int ld_valid_fields(LDP ld)  {
 	/* Checks that there is at least 10% valid rays */
 	int num_valid   = count_equal(ld->valid, ld->nrays, 1);
 	int num_invalid = count_equal(ld->valid, ld->nrays, 0);
-	double min_valid_rays_ratio = 0.02;	// could work for point2point 0.001;
+	double min_valid_rays_ratio = 0.003;	// could work for point2point 0.001; point2line 0.02
 	if (num_valid < ld->nrays * min_valid_rays_ratio) {
 		sm_error("Valid: %d/%d invalid: %d.\n", num_valid, ld->nrays, num_invalid);
 		return 0;
