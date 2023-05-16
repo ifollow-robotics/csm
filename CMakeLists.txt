@@ -3,7 +3,7 @@ project(laser_scan_matcher)
 
 ## C++20 support
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_BUILD_TYPE ExtremeDebug) #None, Debug, Release, ExtremeDebug
+set(CMAKE_BUILD_TYPE None) #None, Debug, Release, ExtremeDebug
 set(GCC_COVERAGE_COMPILE_FLAGS "-O3") # -O2 -O3 -march=native -w  |  "-Og -g -w"
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GCC_COVERAGE_COMPILE_FLAGS}")
 

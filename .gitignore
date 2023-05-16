@@ -28,4 +28,5 @@ sm/lib/egsl/libegsl.a
 sm/lib/json-c/config.h
 sm/lib/json-c/libjson-c.a
 build/*
+build/sm/*
 
