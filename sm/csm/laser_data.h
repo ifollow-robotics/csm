@@ -55,7 +55,9 @@ struct laser_data {
 	int * restrict up_bigger, 
 	    * restrict up_smaller, 
 	    * restrict down_bigger, 
-	    * restrict down_smaller;	
+	    * restrict down_smaller;
+	
+	float min_valid_rays_ratio;
 };
 
 struct correspondence {

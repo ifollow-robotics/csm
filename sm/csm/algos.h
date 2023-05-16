@@ -132,6 +132,9 @@ struct sm_params {
 	int gpm_interval;
 	/* Parameter specific to HSM (unfinished :-/ ) */
 	struct hsm_params hsm;
+
+	int min_corresp_bef, min_corresp_aft;
+
 };
 
 
